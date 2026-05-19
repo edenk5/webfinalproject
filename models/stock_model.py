@@ -1,8 +1,4 @@
-import json
-import urllib.request
-import urllib.parse
-import urllib.error
-import math
+import yfinance as yf
 from datetime import datetime, timedelta
 import random
 
@@ -21,115 +17,76 @@ SECTOR_MAP = {
 }
 
 class StockModel:
-    @staticmethod
-    def _fetch_yahoo_quote(ticker: str) -> dict | None:
-        url = (
-            f"https://query2.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(ticker)}"
-            "?interval=1d&range=1y"
-        )
-        headers = {
-            "User-Agent": (
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/124.0.0.0 Safari/537.36"
-            ),
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Connection": "keep-alive"
-        }
-        try:
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=6) as resp:
-                data = json.loads(resp.read().decode())
-            return data
-        except urllib.error.HTTPError as e:
-            print(f"Yahoo API Error for {ticker}: HTTP {e.code} - {e.reason}")
-            return None
-        except Exception as e:
-            print(f"Network Error for {ticker}: {e}")
-            return None
-
     @classmethod
     def get_stock_data(cls, ticker: str) -> dict:
-        raw = cls._fetch_yahoo_quote(ticker)
+        try:
+            stock = yf.Ticker(ticker)
+            # משיכת נתונים של שנה אחורה
+            hist = stock.history(period="1y")
+            
+            if hist.empty:
+                print(f"⚠️ No data found for {ticker} via yfinance.")
+                return cls._synthetic_stock(ticker)
 
-        if raw:
-            try:
-                meta = raw["chart"]["result"][0]["meta"]
-                closes = raw["chart"]["result"][0]["indicators"]["quote"][0]["close"]
-                timestamps = raw["chart"]["result"][0]["timestamp"]
+            # חילוץ המחירים העדכניים
+            current_price = float(hist['Close'].iloc[-1])
+            prev_close = float(hist['Close'].iloc[-2]) if len(hist) > 1 else current_price
+            
+            week52_high = float(hist['High'].max())
+            week52_low = float(hist['Low'].min())
+            volume = int(hist['Volume'].iloc[-1])
+            
+            change = current_price - prev_close
+            change_pct = (change / prev_close * 100) if prev_close else 0
+            year_change_pct = ((current_price - float(hist['Close'].iloc[0])) / float(hist['Close'].iloc[0]) * 100) if len(hist) > 0 else 0
 
-                closes = [c for c in closes if c is not None]
-                current_price = meta.get("regularMarketPrice", closes[-1] if closes else 0)
-                prev_close    = meta.get("previousClose", closes[-2] if len(closes) > 1 else current_price)
-                week52_high   = meta.get("fiftyTwoWeekHigh", max(closes))
-                week52_low    = meta.get("fiftyTwoWeekLow",  min(closes))
-                volume        = meta.get("regularMarketVolume", 0)
-                currency      = meta.get("currency", "USD")
-                exchange      = meta.get("exchangeName", "")
+            # נתונים לגרף (90 ימי מסחר אחרונים)
+            hist_90 = hist.tail(90)
+            history_dates = [d.strftime("%Y-%m-%d") for d in hist_90.index]
+            history_prices = [round(float(p), 2) for p in hist_90['Close']]
 
-                change        = current_price - prev_close
-                change_pct    = (change / prev_close * 100) if prev_close else 0
+            # משיכת מידע כללי על החברה
+            info = stock.info if stock.info else {}
+            name = info.get('longName') or info.get('shortName') or ticker
+            currency = info.get('currency', 'USD')
+            exchange = info.get('exchange', '')
 
-                year_change_pct = ((current_price - closes[0]) / closes[0] * 100) if closes else 0
+            score, signal, signal_class, reasoning = cls._score_stock(
+                current_price, prev_close, week52_high, week52_low,
+                history_prices, year_change_pct, volume
+            )
 
-                raw_prices = closes[-90:]
-                raw_ts     = timestamps[-90:]
-
-                history_prices = []
-                history_dates  = []
-                for i, ts in enumerate(raw_ts):
-                    try:
-                        history_dates.append(
-                            datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d")
-                        )
-                        history_prices.append(round(raw_prices[i], 2))
-                    except Exception:
-                        pass
-
-                today_str = datetime.utcnow().strftime("%Y-%m-%d")
-                if not history_dates or history_dates[-1] != today_str:
-                    history_dates.append(today_str)
-                    history_prices.append(round(current_price, 2))
-                else:
-                    history_prices[-1] = round(current_price, 2)
-
-                score, signal, signal_class, reasoning = cls._score_stock(
-                    current_price, prev_close, week52_high, week52_low,
-                    closes, year_change_pct, volume
-                )
-
-                return {
-                    "ticker": ticker,
-                    "name": meta.get("longName") or meta.get("shortName") or ticker,
-                    "price": round(current_price, 2),
-                    "change": round(change, 2),
-                    "change_pct": round(change_pct, 2),
-                    "week52_high": round(week52_high, 2),
-                    "week52_low": round(week52_low, 2),
-                    "volume": volume,
-                    "currency": currency,
-                    "exchange": exchange,
-                    "year_change_pct": round(year_change_pct, 2),
-                    "history_prices": history_prices,
-                    "history_dates": history_dates,
-                    "sector": SECTOR_MAP.get(ticker, "Other"),
-                    "score": score,
-                    "signal": signal,
-                    "signal_class": signal_class,
-                    "reasoning": reasoning,
-                    "live": True,
-                }
-            except (KeyError, IndexError, TypeError):
-                pass
-
-        return cls._synthetic_stock(ticker)
+            return {
+                "ticker": ticker,
+                "name": name,
+                "price": round(current_price, 2),
+                "change": round(change, 2),
+                "change_pct": round(change_pct, 2),
+                "week52_high": round(week52_high, 2),
+                "week52_low": round(week52_low, 2),
+                "volume": volume,
+                "currency": currency,
+                "exchange": exchange,
+                "year_change_pct": round(year_change_pct, 2),
+                "history_prices": history_prices,
+                "history_dates": history_dates,
+                "sector": SECTOR_MAP.get(ticker, "Other"),
+                "score": score,
+                "signal": signal,
+                "signal_class": signal_class,
+                "reasoning": reasoning,
+                "live": True,
+            }
+        except Exception as e:
+            print(f"❌ yfinance Error for {ticker}: {e}")
+            return cls._synthetic_stock(ticker)
 
     @staticmethod
     def _score_stock(price, prev_close, high52, low52, closes, year_pct, volume) -> tuple:
         reasoning = []
         score = 50 
         sma30 = sum(closes[-30:]) / len(closes[-30:]) if len(closes) >= 30 else price
+        
         if price > sma30 * 1.02:
             score += 15
             reasoning.append("📈 Price is 2%+ above 30-day average — bullish momentum")
