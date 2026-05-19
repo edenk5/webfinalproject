@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}{{ stock.ticker }} — {{ stock.name }} | StockAdvisor Pro{% endblock %}
+{% block meta_desc %}Investment analysis for {{ stock.name }} ({{ stock.ticker }}): score {{ stock.score }}/100, signal {{ stock.signal }}.{% endblock %}
+
+{% block content %}
+<div class="container">
+
+  <!-- ── Back link ── -->
+  <div style="margin-bottom:1.5rem;">
+    <a href="{{ url_for('stocks.dashboard') }}" style="font-size:0.85rem;color:var(--text-secondary);">← Back to Dashboard</a>
+  </div>
+
+  <!-- ── Header ── -->
+  <div class="detail-header flex-between">
+    <div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="detail-ticker">{{ stock.ticker }}</div>
+        <span class="tag">{{ stock.sector }}</span>
+        <span class="tag">{{ stock.exchange }}</span>
+        {% if stock.live %}<div class="live-badge"><span class="live-dot"></span> Live Data</div>{% endif %}
+      </div>
+      <div class="detail-name">{{ stock.name }}</div>
+      <div style="display:flex;align-items:baseline;gap:12px;margin-top:8px;">
+        <span class="detail-price">${{ stock.price }}</span>
+        <span class="detail-change {{ 'positive' if stock.change >= 0 else 'negative' }}">
+          {{ '+' if stock.change >= 0 else '' }}${{ stock.change }} ({{ '+' if stock.change_pct >= 0 else '' }}{{ stock.change_pct }}%)
+        </span>
+        <span style="font-size:0.8rem;color:var(--text-muted);">today</span>
+      </div>
+    </div>
+    <div style="text-align:right;">
+      <div class="signal-panel" style="text-align:center;min-width:180px;">
+        <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;">Signal</div>
+        <div class="signal-big signal-badge signal-{{ stock.signal_class }}" style="font-size:1.4rem;padding:8px 20px;margin:8px 0;">{{ stock.signal }}</div>
+        <div class="signal-score-label">Investment Score</div>
+        <div class="signal-score-val">{{ stock.score }}<span style="font-size:1rem;-webkit-text-fill-color:var(--text-muted);">/100</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="detail-grid">
+    <!-- ── Left column: Chart + Stats ── -->
+    <div>
+
+      <!-- Price Chart -->
+      <div class="chart-container">
+        <div class="flex-between" style="margin-bottom:1rem;">
+          <span style="font-size:0.9rem;font-weight:600;">90-Day Price History</span>
+          <span style="font-size:0.8rem;color:{{ 'var(--accent-green)' if stock.year_change_pct >= 0 else 'var(--accent-red)' }};">
+            1Y: {{ '+' if stock.year_change_pct >= 0 else '' }}{{ stock.year_change_pct }}%
+          </span>
+        </div>
+        <div style="height:260px;">
+          <canvas id="fullChart"
+            data-prices='{{ stock.history_prices | tojson }}'
+            data-dates='{{ stock.history_dates | tojson }}'
+            data-signal="{{ stock.signal }}">
+          </canvas>
+        </div>
+      </div>
+
+      <!-- Key Stats -->
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="s-label">52W High</div>
+          <div class="s-value text-gold">${{ stock.week52_high }}</div>
+        </div>
+        <div class="stat-item">
+          <div class="s-label">52W Low</div>
+          <div class="s-value" style="color:var(--accent-red);">${{ stock.week52_low }}</div>
+        </div>
+        <div class="stat-item">
+          <div class="s-label">Volume</div>
+          <div class="s-value">{{ "{:,}".format(stock.volume) }}</div>
+        </div>
+        <div class="stat-item">
+          <div class="s-label">1-Year Return</div>
+          <div class="s-value {{ 'positive' if stock.year_change_pct >= 0 else 'negative' }}">
+            {{ '+' if stock.year_change_pct >= 0 else '' }}{{ stock.year_change_pct }}%
+          </div>
+        </div>
+      </div>
+
+      <!-- 52W Range Bar -->
+      <div class="chart-container">
+        <div style="font-size:0.85rem;font-weight:600;margin-bottom:0.75rem;">Price in 52-Week Range</div>
+        <div class="range-bar-wrap">
+          <div class="range-bar">
+            {% set rng = stock.week52_high - stock.week52_low %}
+            {% set pct = ((stock.price - stock.week52_low) / rng * 100) | round | int if rng > 0 else 50 %}
+            <div class="range-marker" style="left:{{ pct }}%;"></div>
+          </div>
+          <div class="range-labels">
+            <span>${{ stock.week52_low }}</span>
+            <span style="color:var(--text-primary);font-weight:600;">${{ stock.price }} ({{ pct }}%)</span>
+            <span>${{ stock.week52_high }}</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── Right column: Signal Analysis ── -->
+    <div>
+      <!-- AI Insight Panel -->
+      {% if ai_summary %}
+      <div class="signal-panel" style="border-left: 4px solid var(--accent-blue);">
+        <div style="font-size:0.85rem;font-weight:600;margin-bottom:0.5rem;display:flex;align-items:center;gap:6px;">
+          <span>🤖 AI Advisor Insights</span>
+          <span class="tag" style="font-size:0.6rem;padding:2px 6px;">Llama 3</span>
+        </div>
+        <p style="font-size:0.9rem; line-height: 1.5; color: var(--text-secondary); margin: 0;">
+          {{ ai_summary }}
+        </p>
+      </div>
+      {% endif %}
+
+      <div class="signal-panel">
+        <div style="font-size:0.85rem;font-weight:600;margin-bottom:0.5rem;">📊 Analysis Reasoning</div>
+        <ul class="reasoning-list">
+          {% for reason in stock.reasoning %}
+          <li>{{ reason }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+
+      <!-- Score Bar -->
+      <div class="signal-panel">
+        <div class="flex-between" style="margin-bottom:0.75rem;">
+          <span style="font-size:0.85rem;font-weight:600;">Score Breakdown</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:0.9rem;font-weight:700;">{{ stock.score }}/100</span>
+        </div>
+        <div class="score-bar" style="height:10px;border-radius:5px;">
+          <div class="score-bar-fill" data-score="{{ stock.score }}" style="width:0%;height:100%;border-radius:5px;"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-muted);margin-top:6px;">
+          <span>Sell Zone</span><span>Hold</span><span>Buy Zone</span>
+        </div>
+      </div>
+
+      <!-- Related stocks -->
+      {% if related %}
+      <div class="signal-panel">
+        <div style="font-size:0.85rem;font-weight:600;margin-bottom:0.75rem;">🔗 Same Sector</div>
+        {% for r in related %}
+        <a href="{{ url_for('stocks.stock_detail', ticker=r.ticker) }}" style="text-decoration:none;">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
+            <div>
+              <div style="font-weight:600;font-family:'JetBrains Mono',monospace;font-size:0.9rem;">{{ r.ticker }}</div>
+              <div style="font-size:0.72rem;color:var(--text-muted);">Score {{ r.score }}</div>
+            </div>
+            <span class="signal-badge signal-{{ r.signal_class }}" style="font-size:0.65rem;">{{ r.signal }}</span>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+
+</div>
+{% endblock %}

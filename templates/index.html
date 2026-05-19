@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — StockAdvisor Pro{% endblock %}
+{% block meta_desc %}Real-time stock investment ratings and market overview for top US equities.{% endblock %}
+
+{% block content %}
+<div class="container">
+
+  <!-- ── Hero Stats ── -->
+  <div class="hero-stats">
+    <div class="stat-card">
+      <div class="label">Market Score</div>
+      <div class="value" style="background:linear-gradient(135deg,#63b3ed,#b794f4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">{{ avg_score }}</div>
+      <div class="sub">Average investment score</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Stocks Tracked</div>
+      <div class="value">{{ total_stocks }}</div>
+      <div class="sub">Default watchlist</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Gainers Today</div>
+      <div class="value positive">{{ gainers }}</div>
+      <div class="sub">Positive day change</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Losers Today</div>
+      <div class="value negative">{{ losers }}</div>
+      <div class="sub">Negative day change</div>
+    </div>
+  </div>
+
+  <!-- ── Top Picks ── -->
+  <div class="section-header">
+    <div class="section-title">🏆 Top Investment Picks <span>Ranked by score</span></div>
+  </div>
+  <div class="top-picks-grid mb-2">
+    {% for s in top_picks %}
+    <a href="{{ url_for('stocks.stock_detail', ticker=s.ticker) }}" style="text-decoration:none;color:inherit;">
+      <div class="top-pick-card">
+        <div class="pick-rank">#{{ loop.index }} Pick</div>
+        <div class="pick-ticker">{{ s.ticker }}</div>
+        <div class="pick-score">{{ s.score }}</div>
+        <div class="pick-signal">
+          <span class="signal-badge signal-{{ s.signal_class }}">{{ s.signal }}</span>
+        </div>
+        <div style="font-size:0.72rem;color:var(--text-muted);margin-top:6px;">${{ s.price }}</div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+
+  <!-- ── Sector Overview ── -->
+  <div class="section-header">
+    <div class="section-title">🗂️ Sector Scores</div>
+  </div>
+  <div class="sector-grid mb-2">
+    {% for sector, score in sector_scores.items() %}
+    <div class="sector-card">
+      <div class="sector-name">{{ sector }}</div>
+      <div class="sector-score" style="color:
+        {%- if score >= 65 %}var(--accent-green)
+        {%- elif score >= 50 %}var(--accent-gold)
+        {%- else %}var(--accent-red){% endif %};">{{ score }}</div>
+      <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">avg score</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- ── All Stocks Grid ── -->
+  <div class="section-header">
+    <div class="section-title">📊 All Stocks <span>{{ total_stocks }} tracked</span></div>
+    <a class="view-all" href="{{ url_for('stocks.watchlist') }}">Custom watchlist →</a>
+  </div>
+  <div class="cards-grid">
+    {% for s in stocks %}
+    <a href="{{ url_for('stocks.stock_detail', ticker=s.ticker) }}" style="text-decoration:none;color:inherit;">
+      <div class="stock-card">
+        <div class="card-header">
+          <div>
+            <div class="card-ticker">{{ s.ticker }}</div>
+            <div class="card-name">{{ s.name }}</div>
+          </div>
+          <div class="card-sector">{{ s.sector }}</div>
+        </div>
+
+        <div class="card-price-row">
+          <span class="card-price">${{ s.price }}</span>
+          <span class="card-change {{ 'positive' if s.change >= 0 else 'negative' }}">
+            {{ '+' if s.change >= 0 else '' }}{{ s.change_pct }}%
+          </span>
+        </div>
+
+        <!-- Mini sparkline -->
+        <div class="card-mini-chart">
+          <canvas id="spark-{{ s.ticker }}"
+            data-sparkline='{{ s.history_prices[-30:] | tojson }}'
+            style="width:100%;height:100%;"></canvas>
+        </div>
+
+        <div class="card-footer">
+          <span class="signal-badge signal-{{ s.signal_class }}">{{ s.signal }}</span>
+          <div class="score-bar-wrap" style="width:90px;">
+            <div class="score-bar">
+              <div class="score-bar-fill" data-score="{{ s.score }}" style="width:0%;"></div>
+            </div>
+            <span class="score-num">{{ s.score }}</span>
+          </div>
+        </div>
+
+        {% if s.live %}
+        <div class="live-badge" style="margin-top:8px;">
+          <span class="live-dot"></span> Live
+        </div>
+        {% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Wire up sparklines — IDs are generated per-ticker above
+document.querySelectorAll("canvas[data-sparkline]").forEach(el => {
+  try {
+    const prices = JSON.parse(el.dataset.sparkline);
+    renderSparkline(el.id, prices);
+  } catch(e) {}
+});
+</script>
+{% endblock %}

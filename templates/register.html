@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Register | StockAdvisor Pro{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 400px; margin-top: 4rem;">
+  <div class="signal-panel" style="padding: 2rem;">
+    <h2 style="margin-bottom: 1.5rem; text-align: center;">Create Account</h2>
+    <form method="POST" action="{{ url_for('auth.register') }}">
+      <div style="margin-bottom: 1rem;">
+        <label for="username" style="display: block; font-size: 0.85rem; margin-bottom: 0.5rem; color: var(--text-secondary);">Username</label>
+        <input type="text" id="username" name="username" required autofocus style="width: 100%; padding: 0.75rem; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary);">
+      </div>
+      <div style="margin-bottom: 1rem;">
+        <label for="password" style="display: block; font-size: 0.85rem; margin-bottom: 0.5rem; color: var(--text-secondary);">Password (min 6 chars)</label>
+        <input type="password" id="password" name="password" required style="width: 100%; padding: 0.75rem; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary);">
+      </div>
+      <div style="margin-bottom: 1.5rem;">
+        <label for="confirm_password" style="display: block; font-size: 0.85rem; margin-bottom: 0.5rem; color: var(--text-secondary);">Confirm Password</label>
+        <input type="password" id="confirm_password" name="confirm_password" required style="width: 100%; padding: 0.75rem; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary);">
+      </div>
+      <button type="submit" class="signal-badge signal-buy" style="width: 100%; padding: 0.75rem; font-size: 1rem; border: none; cursor: pointer;">Register</button>
+    </form>
+    <div style="margin-top: 1.5rem; text-align: center; font-size: 0.85rem;">
+      <span style="color: var(--text-muted);">Already have an account?</span>
+      <a href="{{ url_for('auth.login') }}" style="color: var(--accent-blue); text-decoration: none; font-weight: 600;">Login here</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
