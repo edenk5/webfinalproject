@@ -8,6 +8,14 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+
+  <!-- ── Anti-flicker: apply saved theme BEFORE first paint ── -->
+  <script>
+    (function () {
+      var t = localStorage.getItem('sa-theme') || 'default';
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
 </head>
 <body>
 
@@ -15,7 +23,7 @@
 <nav class="navbar">
   <a class="nav-brand" href="{{ url_for('stocks.dashboard') }}">
     <div class="logo-icon">📈</div>
-    StockAdvisor <span style="color:var(--accent-blue)">Pro</span>
+    StockAdvisor <span class="brand-accent">Pro</span>
   </a>
   <div class="nav-links">
     <a href="{{ url_for('stocks.dashboard') }}" class="{{ 'active' if request.endpoint == 'stocks.dashboard' }}">Dashboard</a>
@@ -30,6 +38,52 @@
       <a href="{{ url_for('auth.register') }}" class="{{ 'active' if request.endpoint == 'auth.register' }}">Register</a>
     {% endif %}
   </div>
+
+  <!-- ── Theme Switcher ── -->
+  <div class="theme-switcher" id="themeSwitcher">
+    <button class="theme-trigger" id="themeTrigger" aria-label="Change theme" title="Change theme">
+      <span class="theme-trigger-icon" id="themeIcon">🎨</span>
+      <svg class="theme-caret" width="10" height="10" viewBox="0 0 10 10" fill="none">
+        <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </button>
+    <div class="theme-dropdown" id="themeDropdown" role="listbox" aria-label="Select theme">
+      <div class="theme-dropdown-header">Choose Theme</div>
+      <button class="theme-option" data-theme="default" role="option">
+        <span class="theme-swatch swatch-default"></span>
+        <span class="theme-option-info">
+          <span class="theme-option-name">Midnight Indigo</span>
+          <span class="theme-option-desc">Premium dark glass</span>
+        </span>
+        <span class="theme-check">✓</span>
+      </button>
+      <button class="theme-option" data-theme="light" role="option">
+        <span class="theme-swatch swatch-light"></span>
+        <span class="theme-option-info">
+          <span class="theme-option-name">Elegant Light</span>
+          <span class="theme-option-desc">Clean white & slate</span>
+        </span>
+        <span class="theme-check">✓</span>
+      </button>
+      <button class="theme-option" data-theme="emerald" role="option">
+        <span class="theme-swatch swatch-emerald"></span>
+        <span class="theme-option-info">
+          <span class="theme-option-name">Emerald Finance</span>
+          <span class="theme-option-desc">Luxury green wealth</span>
+        </span>
+        <span class="theme-check">✓</span>
+      </button>
+      <button class="theme-option" data-theme="cyberpunk" role="option">
+        <span class="theme-swatch swatch-cyberpunk"></span>
+        <span class="theme-option-info">
+          <span class="theme-option-name">Cyberpunk</span>
+          <span class="theme-option-desc">Deep neon electric</span>
+        </span>
+        <span class="theme-check">✓</span>
+      </button>
+    </div>
+  </div>
+
   <div class="nav-badge">🔴&nbsp; Live Data</div>
 </nav>
 
@@ -56,6 +110,61 @@
 </footer>
 
 <script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+
+<!-- ── Theme Switcher Script ── -->
+<script>
+(function () {
+  var STORAGE_KEY = 'sa-theme';
+  var icons = { default: '🌌', light: '☀️', emerald: '💚', cyberpunk: '⚡' };
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem(STORAGE_KEY, theme);
+    // update trigger icon
+    var iconEl = document.getElementById('themeIcon');
+    if (iconEl) iconEl.textContent = icons[theme] || '🎨';
+    // update active state
+    document.querySelectorAll('.theme-option').forEach(function (btn) {
+      btn.classList.toggle('active', btn.dataset.theme === theme);
+    });
+  }
+
+  // Apply on load (also done in <head> for no-flicker; this syncs UI state)
+  var saved = localStorage.getItem(STORAGE_KEY) || 'default';
+  applyTheme(saved);
+
+  // Toggle dropdown
+  var trigger = document.getElementById('themeTrigger');
+  var dropdown = document.getElementById('themeDropdown');
+  var switcher = document.getElementById('themeSwitcher');
+
+  trigger.addEventListener('click', function (e) {
+    e.stopPropagation();
+    switcher.classList.toggle('open');
+  });
+
+  // Theme option clicks
+  document.querySelectorAll('.theme-option').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      applyTheme(btn.dataset.theme);
+      switcher.classList.remove('open');
+    });
+  });
+
+  // Close on outside click
+  document.addEventListener('click', function (e) {
+    if (!switcher.contains(e.target)) {
+      switcher.classList.remove('open');
+    }
+  });
+
+  // Close on Escape
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') switcher.classList.remove('open');
+  });
+})();
+</script>
+
 {% block extra_scripts %}{% endblock %}
 </body>
 </html>
